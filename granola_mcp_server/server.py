@@ -287,6 +287,23 @@ class GranolaMCPServer:
                 except Exception as e:
                     print(f"Error parsing meeting {meeting_id}: {e}")
         
+        # Build reverse lookup: meeting ID -> folder title from document lists
+        document_lists_meta = raw_data.get("documentListsMetadata", {})
+        document_lists = raw_data.get("documentLists", {})
+        meeting_id_to_folder: Dict[str, str] = {}
+        for list_id, member_ids in document_lists.items():
+            meta = document_lists_meta.get(list_id)
+            if meta and isinstance(member_ids, list):
+                folder_title = meta.get("title")
+                if folder_title:
+                    for mid in member_ids:
+                        meeting_id_to_folder[mid] = folder_title
+
+        # Assign folder names to parsed meetings
+        for meeting_id, metadata in cache_data.meetings.items():
+            if meeting_id in meeting_id_to_folder:
+                metadata.folder = meeting_id_to_folder[meeting_id]
+
         # Parse Granola transcripts (list format)
         if "transcripts" in raw_data:
             for transcript_id, transcript_data in raw_data["transcripts"].items():
@@ -476,12 +493,16 @@ class GranolaMCPServer:
             # Search in title
             if query_lower in meeting.title.lower():
                 score += 2
-            
+
+            # Search in folder name
+            if meeting.folder and query_lower in meeting.folder.lower():
+                score += 2
+
             # Search in participants
             for participant in meeting.participants:
                 if query_lower in participant.lower():
                     score += 1
-            
+
             # Search in transcript content if available
             if meeting_id in self.cache_data.transcripts:
                 transcript = self.cache_data.transcripts[meeting_id]
@@ -503,6 +524,8 @@ class GranolaMCPServer:
         for score, meeting in results:
             output_lines.append(f"• **{meeting.title}** ({meeting.id})")
             output_lines.append(f"  Date: {self._format_local_time(meeting.date)}")
+            if meeting.folder:
+                output_lines.append(f"  Folder: {meeting.folder}")
             if meeting.participants:
                 output_lines.append(f"  Participants: {', '.join(meeting.participants)}")
             output_lines.append("")
@@ -525,9 +548,12 @@ class GranolaMCPServer:
         if meeting.duration:
             details.append(f"**Duration:** {meeting.duration} minutes")
         
+        if meeting.folder:
+            details.append(f"**Folder:** {meeting.folder}")
+
         if meeting.participants:
             details.append(f"**Participants:** {', '.join(meeting.participants)}")
-        
+
         if meeting.meeting_type:
             details.append(f"**Type:** {meeting.meeting_type}")
         

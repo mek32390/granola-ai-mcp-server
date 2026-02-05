@@ -69,7 +69,16 @@ async def create_test_cache_with_panels():
                 }
             }
         },
-        "transcripts": {}
+        "transcripts": {},
+        "documentListsMetadata": {
+            "folder-1": {
+                "id": "folder-1",
+                "title": "Engineering"
+            }
+        },
+        "documentLists": {
+            "folder-1": ["m1"]
+        }
     }
 
     cache_wrapper = {"cache": json.dumps({"state": state})}
@@ -101,11 +110,31 @@ async def test_server():
         assert "Hello Panel" in m1_content, "Panel text should be extracted for m1"
         assert "Direct notes" in m2_content, "notes_plain should take precedence for m2"
 
+        # Folder assignment checks
+        assert server.cache_data.meetings["m1"].folder == "Engineering", \
+            "m1 should be assigned to Engineering folder"
+        assert server.cache_data.meetings["m2"].folder is None, \
+            "m2 should not have a folder"
+
         print("Synthetic content checks passed.")
 
         # Minimal smoke for existing flows
         await server._search_meetings("Service", 5)
         await server._get_meeting_documents("m1")
+
+        # Folder search test
+        folder_results = await server._search_meetings("Engineering", 5)
+        folder_text = folder_results[0].text
+        assert "Service Review" in folder_text, \
+            "Searching by folder name should find m1"
+        assert "Folder: Engineering" in folder_text, \
+            "Folder name should appear in search output"
+
+        # Meeting details should include folder
+        detail_results = await server._get_meeting_details("m1")
+        detail_text = detail_results[0].text
+        assert "**Folder:** Engineering" in detail_text, \
+            "Meeting details should show folder"
 
         print("\n✅ Panel fallback test passed!")
 
