@@ -107,7 +107,7 @@ class GranolaMCPServer:
             return [
                 Tool(
                     name="search_meetings",
-                    description="Search meetings by title, content, or participants",
+                    description="Search meetings by title, folder, content, or participants",
                     inputSchema={
                         "type": "object",
                         "properties": {
